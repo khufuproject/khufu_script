@@ -53,6 +53,17 @@ Or by running the module directly::
 
   $ python -m notetaker.manage
 
+Available Commands
+==================
+
+::
+
+  Commands:
+      runserver             Run a reloadable development web server.
+      loaddata              Add data based on the YAML from filename
+      shell                 Launch a Python shell
+      syncdb                Ensure all database tables exist
+
 Credits
 =======
 

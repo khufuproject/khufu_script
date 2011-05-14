@@ -13,8 +13,8 @@ requires = [
     ]
 
 setup(name='khufu_script',
-      version='0.6a1',
-      description='Manage-script support for Khufu/Pyramid apps',
+      version='0.6',
+      description='Manage script support for Khufu/Pyramid apps',
       long_description=README + '\n\n' + CHANGES,
       classifiers=[
         "License :: OSI Approved :: BSD License",
@@ -25,7 +25,7 @@ setup(name='khufu_script',
       author='Rocky Burt',
       author_email='rocky@serverzen.com',
       url='https://github.com/khufuproject/khufu_script',
-      keywords='pyramid khufu clue_script manage script',
+      keywords='pyramid khufu clue_script manage script syncdb loaddata',
       packages=find_packages(),
       include_package_data=True,
       zip_safe=False,

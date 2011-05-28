@@ -251,9 +251,12 @@ class ManagerRunner(object):
 
         return app
 
-    def main(self):
-        logging.basicConfig()
-        self.logger.setLevel(logging.INFO)
+    @property
+    def commander(self):
+        if hasattr(self, '_commander'):
+            return self._commander
+
+        commander = self._commander = clue_script.Commander()
 
         def _make_app():
             global_conf = {}
@@ -263,16 +266,18 @@ class ManagerRunner(object):
 
         runserver = clue_script.make_reloadable_server_command(_make_app)
         runserver.parser.set_defaults(with_reloader=True)
-        commands = [
-            runserver,
-            clue_script.PseudoCommand(self.loaddata),
-            clue_script.PseudoCommand(self.shell),
-            ]
+        commander.add(runserver)
+        commander.add(self.loaddata)
+        commander.add(self.shell)
         if self.db_metadatas:
-            commands.append(clue_script.PseudoCommand(self.syncdb))
+            commander.add(self.syncdb)
 
-        commander = clue_script.Commander(commands)
-        commander.run()
+        return self._commander
+
+    def main(self):
+        logging.basicConfig()
+        self.logger.setLevel(logging.INFO)
+        self.commander.run()
 
 
 make_manager = ManagerRunner

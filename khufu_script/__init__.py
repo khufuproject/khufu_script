@@ -11,7 +11,6 @@ import clue_sqlaloader
 from pyramid.util import DottedNameResolver
 from sqlalchemy import create_engine, MetaData, Table
 from sqlalchemy.schema import ForeignKeyConstraint, DropConstraint
-from sqlalchemy.exc import OperationalError
 
 from weberror.evalexception import make_eval_exception
 from weberror.errormiddleware import make_error_middleware
@@ -124,9 +123,7 @@ class SyncDBCommand(object):
             for table in pending_to_remove:
                 fkcs = []
                 for fk in table.foreign_keys:
-                    fkname = fk.target_fullname
-                    fkc = ForeignKeyConstraint((), (), name=fkname)
-                    fkcs.append(fkc)
+                    fkcs.append(ForeignKeyConstraint((), (), fk.constraint.name))
                 table = Table(table.name, dbmeta, *fkcs)
                 constraints.extend(fkcs)
                 tables.append(table)
@@ -137,9 +134,9 @@ class SyncDBCommand(object):
                     name = getattr(constraint, 'name', '(no name)')
                     self.logger.debug('Dropped foreign key constraint: %s'
                                       % name)
-                    self.logger.info('removed %i constraints'
-                                     % len(constraints))
-            except OperationalError, ex:
+                self.logger.info('removed %i constraints'
+                                 % len(constraints))
+            except Exception, ex:
                 self.logger.warn('Constraints could not be removed: %s'
                                  % str(ex))
 

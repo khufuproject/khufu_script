@@ -233,6 +233,8 @@ class ManagerRunner(object):
             if parser.has_section(self.name):
                 for k in parser.options(self.name):
                     settings[k] = parser.get(self.name, k)
+            self.logger.info('Data source: %s'
+                             % settings.get('sqlalchemy.url', 'N/A'))
         return settings
 
     _create_engine = staticmethod(create_engine)

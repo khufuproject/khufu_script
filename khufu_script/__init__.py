@@ -277,6 +277,7 @@ class ManagerRunner(object):
             return self._settings
 
         settings = dict(self.default_settings)
+        self._settings = settings
         if self._exists(self.config_filename):
             self.logger.info('Retrieving settings: %s'
                              % self.config_filename)

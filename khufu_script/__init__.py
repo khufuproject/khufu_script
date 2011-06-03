@@ -5,9 +5,13 @@ import code
 import logging
 
 import clue_script
+
+import clue_sqlaloader
+
 from pyramid.util import DottedNameResolver
-import sqlalchemy.schema
-from sqlalchemy import create_engine, MetaData
+from sqlalchemy import create_engine, MetaData, Table
+from sqlalchemy.schema import ForeignKeyConstraint, DropConstraint
+from sqlalchemy.exc import OperationalError
 
 from weberror.evalexception import make_eval_exception
 from weberror.errormiddleware import make_error_middleware
@@ -15,6 +19,46 @@ from weberror.errormiddleware import formatter
 
 
 maybe_resolve = DottedNameResolver(None).maybe_resolve
+
+
+class FreshDBCommand(object):
+    '''Empty the database (if needed) and load up proper
+    tables and initial data.
+    '''
+
+    __name__ = 'freshdb'
+
+    def __init__(self, manager):
+        self.manager = manager
+        self.logger = manager.logger
+
+    def __call__(self, *argv):
+        parser = self.manager._argparser_factory(prog=self.__name__)
+        parser.add_argument('-d', '--debug', action='store_true',
+                            help='Run with debugging turned on')
+        ns = parser.parse_args(argv)
+        if ns.debug:
+            clue_sqlaloader.logger.setLevel(logging.DEBUG)
+            self.logger.setLevel(logging.DEBUG)
+
+        dirname = self.manager.initial_data_dir
+        settings = self.manager.settings
+
+        argv = list(argv)
+        if '--remove' not in argv:
+            argv.append('--remove')
+        self.manager.syncdb(*argv)
+
+        for x in os.listdir(dirname):
+            if not x.endswith('.yaml'):
+                continue
+
+            filename = os.path.join(dirname, x)
+            short = filename
+            if short.startswith(os.getcwd()):
+                short = short[len(os.getcwd()):]
+            clue_sqlaloader.load(settings['sqlalchemy.url'], filename)
+            self.logger.info('Loaded: %s' % short)
 
 
 class SyncDBCommand(object):
@@ -34,18 +78,19 @@ class SyncDBCommand(object):
         parser.add_argument('tables', metavar='table',
                             help='Tables to operate on', nargs='*',
                             default=['*'])
-        parser.add_argument('-d', '--delete', action='store_true',
-                            help='Delete tables before syncing',
+        parser.add_argument('-r', '--remove', action='store_true',
+                            help='Remove tables before syncing',
                             default=False)
+        parser.add_argument('-d', '--debug', action='store_true',
+                            help='Run with debugging turned on')
         ns = parser.parse_args(argv)
 
-        settings = self.manager.load_settings()
+        settings = self.manager.settings
         self.logger.info('Accessing database: %s'
                          % settings['sqlalchemy.url'])
         engine = self.manager._create_engine(settings['sqlalchemy.url'])
-
         dbmeta = self.manager._create_metadata()
-        dbmeta.reflect(bind=engine)
+        dbmeta.reflect(engine)
         dbtables = dict(dbmeta.tables)
 
         pending_to_add = []
@@ -60,11 +105,10 @@ class SyncDBCommand(object):
                               for k, v in metadata.tables.items()
                               if k in ns.tables)
 
-            if ns.delete:
+            if ns.remove:
                 for t in tables:
                     if t in dbtables:
-                        table = dbtables.pop(t)
-                        pending_to_remove.append(table)
+                        pending_to_remove.append(dbtables.pop(t))
                         self.logger.debug('Flagged for removal: %s' % t)
 
             tables = dict((k, v) for k, v in tables.items()
@@ -74,34 +118,39 @@ class SyncDBCommand(object):
                 pending_to_add += tables.values()
 
         if len(pending_to_remove) > 0:
-            self.logger.info('removed %i tables' % len(pending_to_remove))
             dbmeta = self.manager._create_metadata()
             tables = []
-            all_fkcs = []
+            constraints = []
             for table in pending_to_remove:
                 fkcs = []
                 for fk in table.foreign_keys:
-                    if not fk.name:
-                        continue
-                    fkc = sqlalchemy.schema.ForeignKeyConstraint((), (),
-                                                                 name=fk.name)
+                    fkname = fk.target_fullname
+                    fkc = ForeignKeyConstraint((), (), name=fkname)
                     fkcs.append(fkc)
-                table = sqlalchemy.schema.Table(table.name, dbmeta, *fkcs)
-                all_fkcs.extend(fkcs)
+                table = Table(table.name, dbmeta, *fkcs)
+                constraints.extend(fkcs)
                 tables.append(table)
 
-            # TODO: fix dropping foreign key constraints
-            # for fkc in all_fkcs:
-            #     engine.execute(sqlalchemy.schema.DropConstraint(fkc))
-            #     logger.info('Dropped foreign key constraint: %s' % fkc)
+            try:
+                for constraint in constraints:
+                    engine.execute(DropConstraint(constraint))
+                    name = getattr(constraint, 'name', '(no name)')
+                    self.logger.debug('Dropped foreign key constraint: %s'
+                                      % name)
+                    self.logger.info('removed %i constraints'
+                                     % len(constraints))
+            except OperationalError, ex:
+                self.logger.warn('Constraints could not be removed: %s'
+                                 % str(ex))
 
             dbmeta.drop_all(bind=engine, tables=tables)
+            self.logger.info('removed %i tables' % len(pending_to_remove))
 
         if len(pending_to_add) > 0:
-            self.logger.info('added %i tables' % len(pending_to_add))
             dbmeta = self.manager._create_metadata()
             tables = [x.tometadata(dbmeta) for x in pending_to_add]
             dbmeta.create_all(bind=engine, tables=tables)
+            self.logger.info('added %i tables' % len(pending_to_add))
 
 
 class LoadDataCommand(object):
@@ -114,8 +163,6 @@ class LoadDataCommand(object):
         self.logger = manager.logger
 
     def __call__(self, *argv):
-        from clue_sqlaloader import load, logger
-
         parser = self.manager._argparser_factory(prog=self.__name__)
         parser.add_argument('filenames', metavar='file',
                             help='Files to load', nargs='+')
@@ -123,15 +170,15 @@ class LoadDataCommand(object):
                             help='Run with debugging turned on')
         ns = parser.parse_args(argv)
 
-        settings = self.manager.load_settings()
+        settings = self.manager.settings
         self.manager.syncdb()
 
         if ns.debug:
-            logger.setLevel(logging.DEBUG)
+            clue_sqlaloader.logger.setLevel(logging.DEBUG)
 
         for filename in ns.filenames:
-            load(settings['sqlalchemy.url'], filename)
-            logger.info('Loaded: %s' % filename)
+            clue_sqlaloader.load(settings['sqlalchemy.url'], filename)
+            self.logger.info('Loaded: %s' % filename)
 
 
 class ShellCommand(object):
@@ -162,7 +209,7 @@ dir() =>
     root      - the traversal root
     app       - the active wsgi application
 ''' % (sys.version, sys.platform)
-        app = self.manager.make_app({}, **self.manager.load_settings())
+        app = self.manager.make_app({}, **self.manager.settings)
         innerapp = self.get_app_with_registry(app)
         root, closer = get_root(innerapp)
         shell_globals = {'root': root,
@@ -196,16 +243,17 @@ class ManagerRunner(object):
     config_filename = name + '.ini'
 
     def __init__(self, name, app_factory, db_metadatas=[],
-                 config_filename=None, settings=None,
-                 logger=None):
+                 config_filename=None, default_settings=None,
+                 logger=None, initial_data_dir=None):
         self.name = name
         self.app_factory = maybe_resolve(app_factory)
         self.config_filename = config_filename or (name + '.ini')
         self.db_metadatas = db_metadatas
 
-        self.settings = settings = dict(settings or {})
+        self.default_settings = default_settings = \
+            dict(default_settings or {})
         for k, v in self.DEFAULT_SETTINGS.items():
-            settings.setdefault(k, v)
+            default_settings.setdefault(k, v)
 
         if logger is None:
             logger = logging.getLogger(self.name)
@@ -219,12 +267,19 @@ class ManagerRunner(object):
         self.loaddata = LoadDataCommand(self)
         self.shell = ShellCommand(self)
 
+        self.initial_data_dir = initial_data_dir
+        self.freshdb = FreshDBCommand(self)
+
     _exists = staticmethod(os.path.exists)
     _config_parser_factory = SafeConfigParser
     _argparser_factory = argparse.ArgumentParser
 
-    def load_settings(self):
-        settings = dict(self.settings)
+    @property
+    def settings(self):
+        if hasattr(self, '_settings'):
+            return self._settings
+
+        settings = dict(self.default_settings)
         if self._exists(self.config_filename):
             self.logger.info('Retrieving settings: %s'
                              % self.config_filename)
@@ -233,7 +288,7 @@ class ManagerRunner(object):
             if parser.has_section(self.name):
                 for k in parser.options(self.name):
                     settings[k] = parser.get(self.name, k)
-            self.logger.info('Data source: %s'
+            self.logger.info('Data source: sqlalchemy -> %s'
                              % settings.get('sqlalchemy.url', 'N/A'))
         return settings
 
@@ -262,7 +317,7 @@ class ManagerRunner(object):
 
         def _make_app():
             global_conf = {}
-            settings = dict(self.load_settings())
+            settings = dict(self.settings)
 
             return self.make_app(global_conf, **settings)
 
@@ -273,6 +328,8 @@ class ManagerRunner(object):
         commander.add(self.shell)
         if self.db_metadatas:
             commander.add(self.syncdb)
+        if self.initial_data_dir:
+            commander.add(self.freshdb)
 
         return self._commander
 

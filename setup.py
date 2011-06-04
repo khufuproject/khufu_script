@@ -6,14 +6,16 @@ README = open(os.path.join(here, 'README.rst')).read()
 CHANGES = open(os.path.join(here, 'CHANGES.rst')).read()
 
 requires = [
-    'setuptools',
     'clue_script',
     'clue_sqlaloader',
+    'setuptools',
+    'pyramid',
+    'SQLAlchemy',
     'WebError',
     ]
 
 setup(name='khufu_script',
-      version='0.6',
+      version='0.6.1',
       description='Manage script support for Khufu/Pyramid apps',
       long_description=README + '\n\n' + CHANGES,
       classifiers=[

@@ -3,7 +3,7 @@ from weberror.evalexception import make_eval_exception
 from weberror.errormiddleware import make_error_middleware
 from weberror.errormiddleware import formatter
 
-from .utils import maybe_resolve
+from .utils import maybe_resolve, has_rfoo
 
 
 class Reporter(object):
@@ -30,8 +30,10 @@ def _app_factory(manager):
 
 
 def setup_wsgi_server_command(manager):
+    manager.app = _app_factory(manager)
     runserver = clue_script.make_reloadable_server_command(
-        lambda manager=manager: _app_factory(manager))
+        application=manager.app)
     runserver.parser.set_defaults(with_reloader=True)
+    runserver.use_rfoo = has_rfoo
     manager.commander.add(runserver)
     return runserver

@@ -86,6 +86,12 @@ class ManagerRunner(object):
         if self.initial_data_dir:
             commander.add(db.FreshDBCommand(self))
 
+        if utils.has_rfoo:
+            commander.add(shell.RFooShellCommand(self))
+
+        commander.commands['runserver'].rfoo_namespace = \
+            commander.commands['shell'].namespace
+
         return self._commander
 
     def main(self):

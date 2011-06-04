@@ -20,6 +20,17 @@ from weberror.errormiddleware import formatter
 maybe_resolve = DottedNameResolver(None).maybe_resolve
 
 
+def update_dict(parser, section, d):
+    '''Update the given dictionary, d, with all keys/values
+    from the section in the config parser specified.
+    '''
+
+    if parser.has_section(section):
+        for k in parser.options(section):
+            d[k] = parser.get(section, k)
+    return d
+
+
 class FreshDBCommand(object):
     '''Empty the database (if needed) and load up proper
     tables and initial data.
@@ -123,7 +134,8 @@ class SyncDBCommand(object):
             for table in pending_to_remove:
                 fkcs = []
                 for fk in table.foreign_keys:
-                    fkcs.append(ForeignKeyConstraint((), (), fk.constraint.name))
+                    fkcs.append(ForeignKeyConstraint(
+                            (), (), fk.constraint.name))
                 table = Table(table.name, dbmeta, *fkcs)
                 constraints.extend(fkcs)
                 tables.append(table)
@@ -260,12 +272,7 @@ class ManagerRunner(object):
         else:
             self.logger = logger
 
-        self.syncdb = SyncDBCommand(self)
-        self.loaddata = LoadDataCommand(self)
-        self.shell = ShellCommand(self)
-
         self.initial_data_dir = initial_data_dir
-        self.freshdb = FreshDBCommand(self)
 
     _exists = staticmethod(os.path.exists)
     _config_parser_factory = SafeConfigParser
@@ -283,9 +290,7 @@ class ManagerRunner(object):
                              % self.config_filename)
             parser = self._config_parser_factory()
             parser.read([self.config_filename])
-            if parser.has_section(self.name):
-                for k in parser.options(self.name):
-                    settings[k] = parser.get(self.name, k)
+            update_dict(parser, self.name, settings)
             self.logger.info('Data source: sqlalchemy -> %s'
                              % settings.get('sqlalchemy.url', 'N/A'))
         return settings
@@ -297,7 +302,8 @@ class ManagerRunner(object):
         m = '\n'.join(formatter.format_text(exc_info))
         self.logger.error(m)
 
-    def make_app(self, global_conf, **settings):
+    def make_app(self, global_conf={}):
+        settings = self.settings
         app = maybe_resolve(self.app_factory)(global_conf, **settings)
         if settings.get('DEBUG', False):
             app = make_eval_exception(app, global_conf, reporters=[self])
@@ -313,21 +319,17 @@ class ManagerRunner(object):
 
         commander = self._commander = clue_script.Commander()
 
-        def _make_app():
-            global_conf = {}
-            settings = dict(self.settings)
-
-            return self.make_app(global_conf, **settings)
-
-        runserver = clue_script.make_reloadable_server_command(_make_app)
+        runserver = clue_script.make_reloadable_server_command(self.make_app)
         runserver.parser.set_defaults(with_reloader=True)
         commander.add(runserver)
-        commander.add(self.loaddata)
-        commander.add(self.shell)
+
+        commander.add(LoadDataCommand(self))
+        commander.add(ShellCommand(self))
+
         if self.db_metadatas:
-            commander.add(self.syncdb)
+            commander.add(SyncDBCommand(self))
         if self.initial_data_dir:
-            commander.add(self.freshdb)
+            commander.add(FreshDBCommand(self))
 
         return self._commander
 

@@ -12,7 +12,7 @@ class Reporter(object):
 
     def report(self, exc_info):
         m = '\n'.join(formatter.format_text(exc_info))
-        self.logger.error(m)
+        self.manager.logger.error(m)
 
 
 def _app_factory(manager):

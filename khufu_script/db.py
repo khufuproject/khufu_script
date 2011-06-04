@@ -38,7 +38,7 @@ class FreshDBCommand(object):
         argv = list(argv)
         if '--remove' not in argv:
             argv.append('--remove')
-        self.manager.syncdb(*argv)
+        SyncDBCommand(self.manager).syncdb(remove=True)
 
         for x in os.listdir(dirname):
             if not x.endswith('.yaml'):
@@ -78,6 +78,9 @@ class SyncDBCommand(object):
                             help='Run with debugging turned on')
         ns = parser.parse_args(argv)
 
+        self.syncdb(ns.tables, ns.remove)
+
+    def syncdb(self, table_names=['*'], remove=False):
         settings = self.manager.settings
         self.logger.info('Accessing database: %s'
                          % settings['sqlalchemy.url'])
@@ -91,14 +94,14 @@ class SyncDBCommand(object):
         for metadata in self.manager.db_metadatas:
             metadata = maybe_resolve(metadata)
 
-            if '*' in ns.tables:
+            if '*' in table_names:
                 tables = dict(metadata.tables)
             else:
                 tables = dict((k, v)
                               for k, v in metadata.tables.items()
-                              if k in ns.tables)
+                              if k in table_names)
 
-            if ns.remove:
+            if remove:
                 for t in tables:
                     if t in dbtables:
                         pending_to_remove.append(dbtables.pop(t))
@@ -165,7 +168,7 @@ class LoadDataCommand(object):
         ns = parser.parse_args(argv)
 
         settings = self.manager.settings
-        self.manager.syncdb()
+        SyncDBCommand(self.manager).syncdb(remove=True)
 
         if ns.debug:
             clue_sqlaloader.logger.setLevel(logging.DEBUG)

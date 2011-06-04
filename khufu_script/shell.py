@@ -1,4 +1,8 @@
+import sys
+import os
 import code
+
+prog_prefix = os.path.basename(sys.argv[0])
 
 
 class ShellCommand(object):
@@ -17,7 +21,9 @@ class ShellCommand(object):
         import sys
         from pyramid.scripting import get_root
 
-        parser = self.manager._argparser_factory(prog=self.__name__)
+        prog = prog_prefix + ' ' + self.__name__
+        parser = self.manager._argparser_factory(prog=prog,
+                                                 description=self.__doc__)
         parser.parse_args(argv)
 
         banner = '''\

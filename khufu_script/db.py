@@ -2,9 +2,12 @@ import clue_sqlaloader
 from sqlalchemy import Table
 from sqlalchemy.schema import ForeignKeyConstraint, DropConstraint
 import os
+import sys
 import logging
 
 from .utils import maybe_resolve
+
+prog_prefix = os.path.basename(sys.argv[0])
 
 
 class FreshDBCommand(object):
@@ -19,7 +22,9 @@ class FreshDBCommand(object):
         self.logger = manager.logger
 
     def __call__(self, *argv):
-        parser = self.manager._argparser_factory(prog=self.__name__)
+        prog = prog_prefix + ' ' + self.__name__
+        parser = self.manager._argparser_factory(prog=prog,
+                                                 description=self.__doc__)
         parser.add_argument('-d', '--debug', action='store_true',
                             help='Run with debugging turned on')
         ns = parser.parse_args(argv)
@@ -60,7 +65,9 @@ class SyncDBCommand(object):
     def __call__(self, *argv):
         '''Make sure all database tables exist'''
 
-        parser = self.manager._argparser_factory(prog=self.__name__)
+        prog = prog_prefix + ' ' + self.__name__
+        parser = self.manager._argparser_factory(prog=prog,
+                                                 description=self.__doc__)
         parser.add_argument('tables', metavar='table',
                             help='Tables to operate on', nargs='*',
                             default=['*'])
@@ -148,7 +155,9 @@ class LoadDataCommand(object):
         self.logger = manager.logger
 
     def __call__(self, *argv):
-        parser = self.manager._argparser_factory(prog=self.__name__)
+        prog = prog_prefix + ' ' + self.__name__
+        parser = self.manager._argparser_factory(prog=prog,
+                                                 description=self.__doc__)
         parser.add_argument('filenames', metavar='file',
                             help='Files to load', nargs='+')
         parser.add_argument('-d', '--debug', action='store_true',

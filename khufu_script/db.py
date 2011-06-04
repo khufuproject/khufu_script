@@ -168,7 +168,7 @@ class LoadDataCommand(object):
         ns = parser.parse_args(argv)
 
         settings = self.manager.settings
-        SyncDBCommand(self.manager).syncdb(remove=True)
+        SyncDBCommand(self.manager).syncdb(remove=False)
 
         if ns.debug:
             clue_sqlaloader.logger.setLevel(logging.DEBUG)

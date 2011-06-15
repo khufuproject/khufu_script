@@ -53,14 +53,16 @@ class FreshDBCommand(object):
 
 
 class SyncDBCommand(object):
-    '''Ensure all database tables exist
+    '''Ensure all database tables exist and upgrade the database
+    to support latest version.
     '''
 
     __name__ = 'syncdb'
 
-    def __init__(self, manager):
+    def __init__(self, manager, upgradedb=None):
         self.manager = manager
         self.logger = manager.logger
+        self.upgradedb = upgradedb
 
     def __call__(self, *argv):
         '''Make sure all database tables exist'''
@@ -147,6 +149,9 @@ class SyncDBCommand(object):
             dbmeta.create_all(bind=engine, tables=tables)
             self.logger.info('added %i tables' % len(pending_to_add))
 
+        if self.upgradedb != None:
+            self.upgradedb()
+
 
 class LoadDataCommand(object):
     '''Add data based on the YAML from filename'''
@@ -194,6 +199,9 @@ class UpgradeDBCommand(object):
             raise ImportError(str(e) + ': Please install SQLAlchemy-migrate')
 
     def __call__(self, *argv):
+        self.upgradedb()
+
+    def upgradedb(self):
         from migrate.versioning.api import upgrade, version_control, db_version
         from migrate.exceptions import DatabaseNotControlledError
         from migrate.versioning.repository import Repository

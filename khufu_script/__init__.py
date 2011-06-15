@@ -82,10 +82,13 @@ class ManagerRunner(object):
         commander.add(db.LoadDataCommand(self))
         commander.add(shell.ShellCommand(self))
 
-        if self.db_metadatas:
-            commander.add(db.SyncDBCommand(self))
+        upgradedb = None
         if self.db_migrations:
-            commander.add(db.UpgradeDBCommand(self))
+            upgradedb = db.UpgradeDBCommand(self)
+            commander.add(upgradedb)
+
+        if self.db_metadatas:
+            commander.add(db.SyncDBCommand(self, upgradedb))
         if self.initial_data_dir:
             commander.add(db.FreshDBCommand(self))
 

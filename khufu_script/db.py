@@ -176,3 +176,62 @@ class LoadDataCommand(object):
         for filename in ns.filenames:
             clue_sqlaloader.load(settings['sqlalchemy.url'], filename)
             self.logger.info('Loaded: %s' % filename)
+
+
+class UpgradeDBCommand(object):
+    '''Perform an upgrade on the database.
+    '''
+
+    __name__ = 'upgradedb'
+
+    def __init__(self, manager):
+        self.manager = manager
+        self.logger = manager.logger
+
+        try:
+            import migrate
+        except ImportError, e:
+            raise ImportError(str(e) + ': Please install SQLAlchemy-migrate')
+
+    def __call__(self, *argv):
+        from migrate.versioning.api import upgrade, version_control, db_version
+        from migrate.exceptions import DatabaseNotControlledError
+        from migrate.versioning.repository import Repository
+
+        sql_url = self.manager.settings['sqlalchemy.url']
+        upgraded = []
+        for mod in self.manager.db_migrations:
+            mname = str(mod)
+            try:
+                mod = maybe_resolve(mname)
+            except ImportError:
+                self.logger.warn('Skipping upgrade, repo doesn'
+                                 '\'t exist - %s' % mname)
+                continue
+
+            p = mod.__path__[0]
+            repo = Repository(p)
+            new = repo.latest
+
+            try:
+                old = db_version(sql_url, p)
+            except DatabaseNotControlledError:
+                self.logger.warn('DB missing version info, '
+                                 'updating - %s' % repo.id)
+                version_control(sql_url, p)
+                old = db_version(sql_url, p)
+
+            if new <= old:
+                self.logger.debug('Upgrade not required - %s (%s)'
+                                  % (repo.id, old))
+                continue
+
+            try:
+                upgrade(sql_url, p)
+                self.logger.info('Upgraded %s: %s to %s' % (repo.id, old, new))
+                upgrade.append(repo)
+            except DatabaseNotControlledError:
+                self.logger.warn('DB missing version info, '
+                                 'updating - %s' % repo.id)
+                version_control(sql_url, p)
+        self.logger.info('Updated db schema for %i components' % len(upgraded))

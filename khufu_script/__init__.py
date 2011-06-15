@@ -24,11 +24,12 @@ class ManagerRunner(object):
 
     def __init__(self, name, app_factory, db_metadatas=[],
                  config_filename=None, default_settings=None,
-                 logger=None, initial_data_dir=None):
+                 logger=None, initial_data_dir=None, db_migrations=[]):
         self.name = name
         self.app_factory = utils.maybe_resolve(app_factory)
         self.config_filename = config_filename or (name + '.ini')
         self.db_metadatas = db_metadatas
+        self.db_migrations = db_migrations
 
         self.default_settings = default_settings = \
             dict(default_settings or {})
@@ -83,6 +84,8 @@ class ManagerRunner(object):
 
         if self.db_metadatas:
             commander.add(db.SyncDBCommand(self))
+        if self.db_migrations:
+            commander.add(db.UpgradeDBCommand(self))
         if self.initial_data_dir:
             commander.add(db.FreshDBCommand(self))
 

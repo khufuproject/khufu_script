@@ -237,7 +237,7 @@ class UpgradeDBCommand(object):
             try:
                 upgrade(sql_url, p)
                 self.logger.info('Upgraded %s: %s to %s' % (repo.id, old, new))
-                upgrade.append(repo)
+                upgraded.append(repo)
             except DatabaseNotControlledError:
                 self.logger.warn('DB missing version info, '
                                  'updating - %s' % repo.id)

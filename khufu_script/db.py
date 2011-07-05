@@ -202,7 +202,8 @@ class UpgradeDBCommand(object):
         self.upgradedb()
 
     def upgradedb(self):
-        from migrate.versioning.api import upgrade, version_control, db_version
+        from migrate.versioning.api import (upgrade, version_control,
+                                            db_version, version)
         from migrate.exceptions import DatabaseNotControlledError
         from migrate.versioning.repository import Repository
 
@@ -226,7 +227,7 @@ class UpgradeDBCommand(object):
             except DatabaseNotControlledError:
                 self.logger.warn('DB missing version info, '
                                  'updating - %s' % repo.id)
-                version_control(sql_url, p)
+                version_control(sql_url, p, version(p))
                 old = db_version(sql_url, p)
 
             if new <= old:

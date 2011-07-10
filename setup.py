@@ -6,7 +6,7 @@ README = open(os.path.join(here, 'README.rst')).read()
 CHANGES = open(os.path.join(here, 'CHANGES.rst')).read()
 
 requires = [
-    'clue_script',
+    'clue_script >= 0.3',
     'clue_sqlaloader',
     'setuptools',
     'pyramid',

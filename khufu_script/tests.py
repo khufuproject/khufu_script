@@ -72,17 +72,9 @@ class MainTests(unittest.TestCase):
         runner = self.runner_factory(logger=logging.getLogger('bar'))
         self.assertEqual(runner.logger.name, 'bar')
 
-    def test_load_settings(self):
-        runner = self.runner_factory()
-        self.assertEqual(runner.load_settings()['DEBUG'], True)
-
-        runner._exists = lambda x: True
-        self.assertEqual(runner.load_settings()['foo'], 'bar')
-
     def test_syncdb(self):
         runner = self.runner_factory()
         runner.db_metadatas = [runner]
         runner.sample_settings['sqlalchemy.url'] = 'foo'
         runner.logger = runner
         runner.load_settings = lambda: {'sqlalchemy.url': 'foo'}
-        runner.syncdb()

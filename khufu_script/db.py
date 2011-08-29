@@ -87,8 +87,7 @@ class SyncDBCommand(object):
         self.logger.info('Accessing database: %s'
                          % settings['sqlalchemy.url'])
         engine = self.manager._create_engine(settings['sqlalchemy.url'])
-        dbmeta = self.manager._create_metadata()
-        dbmeta.reflect(engine)
+        dbmeta = self.manager._create_metadata(reflect=True, bind=engine)
         dbtables = dict(dbmeta.tables)
 
         pending_to_add = []
@@ -116,7 +115,7 @@ class SyncDBCommand(object):
                 pending_to_add += tables.values()
 
         if len(pending_to_remove) > 0:
-            dbmeta = self.manager._create_metadata()
+            dbmeta = self.manager._create_metadata(reflect=True, bind=engine)
             tables = []
             constraints = []
             for table in pending_to_remove:
@@ -144,7 +143,7 @@ class SyncDBCommand(object):
             self.logger.info('removed %i tables' % len(pending_to_remove))
 
         if len(pending_to_add) > 0:
-            dbmeta = self.manager._create_metadata()
+            dbmeta = self.manager._create_metadata(reflect=True, bind=engine)
             tables = [x.tometadata(dbmeta) for x in pending_to_add]
             dbmeta.create_all(bind=engine, tables=tables)
             self.logger.info('added %i tables' % len(pending_to_add))

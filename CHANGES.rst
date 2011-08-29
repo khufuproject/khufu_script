@@ -1,6 +1,12 @@
 Changes
 =======
 
+0.6.2 (Aug-29-2011)
+-------------------
+
+  * syncdb/upgradedb now reflect on the database more to avoid
+    circular model dependencies
+
 0.6.1 (Jul-10-2011)
 -------------------
 

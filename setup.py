@@ -15,7 +15,7 @@ requires = [
     ]
 
 setup(name='khufu_script',
-      version='0.6.1',
+      version='0.6.2',
       description='Manage script support for Khufu/Pyramid apps',
       long_description=README + '\n\n' + CHANGES,
       classifiers=[
